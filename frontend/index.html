@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система управления складом</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --primary-light: #60a5fa;
+            --secondary: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #06b6d4;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --border: #e2e8f0;
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --radius: 0.5rem;
+            --transition: all 0.2s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f1f5f9;
+            color: var(--dark);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Шапка */
+        .header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: white;
+            padding: 1.5rem 0;
+            box-shadow: var(--shadow-md);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        /* Контейнер */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Вкладки */
+        .tabs-container {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--secondary);
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .tab:hover {
+            color: var(--primary);
+            background-color: #f8fafc;
+        }
+
+        .tab.active {
+            color: var(--primary);
+            background-color: #eff6ff;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--primary);
+        }
+
+        .tab-icon {
+            display: inline-block;
+            margin-right: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        /* Панель инструментов */
+        .toolbar {
+            background: white;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .toolbar-left {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .toolbar-right {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* Кнопки */
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+            text-decoration: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .btn-outline {
+            background: white;
+            border: 2px solid var(--border);
+            color: var(--dark);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: #f0f9ff;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: transparent;
+            color: var(--secondary);
+        }
+
+        .btn-icon:hover {
+            background: var(--light);
+            color: var(--primary);
+        }
+
+        /* Поиск */
+        .search-container {
+            position: relative;
+        }
+
+        .search-input {
+            padding: 0.625rem 1rem 0.625rem 2.5rem;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            width: 300px;
+            transition: var(--transition);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--secondary);
+            font-size: 1.1rem;
+        }
+
+        /* Таблица */
+        .table-container {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 1rem;
+            text-align: left;
+        }
+
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: var(--secondary);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 2px solid var(--border);
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        th:hover {
+            background: #f1f5f9;
+            color: var(--dark);
+        }
+
+        td {
+            border-bottom: 1px solid var(--border);
+            font-size: 0.875rem;
+        }
+
+        tr {
+            transition: var(--transition);
+        }
+
+        tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        tbody tr.clickable {
+            cursor: pointer;
+        }
+
+        /* Статусы */
+        .status {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .status-development {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .status-development .status-dot { background: #3b82f6; }
+
+        .status-prepared {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .status-prepared .status-dot { background: #f59e0b; }
+
+        .status-sent {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+        .status-sent .status-dot { background: #6366f1; }
+
+        .status-in-progress {
+            background: #fed7aa;
+            color: #9a3412;
+        }
+        .status-in-progress .status-dot { background: #fb923c; }
+
+        .status-stopped {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .status-stopped .status-dot { background: #ef4444; }
+
+        .status-done {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status-done .status-dot { background: #10b981; }
+
+        .status-accepted {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status-accepted .status-dot { background: #10b981; }
+
+        .status-remarks {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .status-remarks .status-dot { background: #f59e0b; }
+
+        .status-processed {
+            background: #cffafe;
+            color: #155e75;
+        }
+        .status-processed .status-dot { background: #06b6d4; }
+
+        /* Модальное окно */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            padding: 0;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            animation: slideIn 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            background: #f8fafc;
+        }
+
+        /* Формы */
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+            color: var(--dark);
+        }
+
+        .form-label .required {
+            color: var(--danger);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.625rem 0.875rem;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            transition: var(--transition);
+            background: white;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-control:disabled {
+            background: #f8fafc;
+            color: var(--secondary);
+            cursor: not-allowed;
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        select.form-control {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23475569' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.875rem center;
+            padding-right: 2.5rem;
+        }
+
+        /* Действия в таблице */
+        .action-buttons {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        /* Пустое состояние */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+
+        .empty-state h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--dark);
+        }
+
+        .empty-state p {
+            font-size: 0.875rem;
+        }
+
+        /* Загрузка */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--secondary);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 2rem;
+            height: 2rem;
+            border: 3px solid var(--border);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Сортировка */
+        .sort-indicator {
+            display: inline-block;
+            margin-left: 0.25rem;
+            font-size: 0.75rem;
+            opacity: 0.5;
+        }
+
+        th:hover .sort-indicator {
+            opacity: 1;
+        }
+
+        /* Тост уведомления */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            min-width: 300px;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 2000;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast-icon {
+            font-size: 1.5rem;
+        }
+
+        .toast-success { border-left: 4px solid var(--success); }
+        .toast-success .toast-icon { color: var(--success); }
+
+        .toast-error { border-left: 4px solid var(--danger); }
+        .toast-error .toast-icon { color: var(--danger); }
+
+        .toast-info { border-left: 4px solid var(--info); }
+        .toast-info .toast-icon { color: var(--info); }
+
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .toolbar-left,
+            .toolbar-right {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .search-input {
+                width: 100%;
+            }
+
+            .tabs {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .tab {
+                min-width: 120px;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 1rem;
+            }
+
+            .table-wrapper {
+                font-size: 0.813rem;
+            }
+
+            th, td {
+                padding: 0.75rem 0.5rem;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+        }
+
+        /* Утилиты */
+        .text-muted { color: var(--secondary); }
+        .text-small { font-size: 0.813rem; }
+        .mt-1 { margin-top: 0.5rem; }
+        .mt-2 { margin-top: 1rem; }
+        .mb-1 { margin-bottom: 0.5rem; }
+        .mb-2 { margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <!-- Шапка -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">📦</div>
+                <h1>Система управления складом</h1>
+            </div>
+            <div class="user-info">
+                <span>Добро пожаловать</span>
+                <div class="user-avatar">А</div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Вкладки -->
+        <div class="tabs-container">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab(0)">
+                    <span class="tab-icon">📋</span>Задания
+                </button>
+                <button class="tab" onclick="switchTab(1)">
+                    <span class="tab-icon">📦</span>Приемка
+                </button>
+                <button class="tab" onclick="switchTab(2)">
+                    <span class="tab-icon">🗄️</span>Архив
+                </button>
+            </div>
+        </div>
+
+        <!-- Панель инструментов -->
+        <div class="toolbar">
+            <div class="toolbar-left" id="toolbarButtons">
+                <!-- Кнопки добавляются динамически -->
+            </div>
+            <div class="toolbar-right">
+                <div class="search-container">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" 
+                           class="search-input" 
+                           placeholder="Поиск..." 
+                           id="searchInput" 
+                           onkeypress="handleSearchKeyPress(event)">
+                </div>
+            </div>
+        </div>
+
+        <!-- Основной контент -->
+        <div class="table-container">
+            <div id="content">
+                <!-- Контент загружается динамически -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно -->
+    <div id="modal" class="modal" onclick="handleModalClick(event)">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">Заголовок</h2>
+                <button class="btn-icon" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Содержимое загружается динамически -->
+            </div>
+            <div class="modal-footer" id="modalFooter">
+                <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="saveData()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Тост уведомления -->
+    <div id="toast" class="toast">
+        <span class="toast-icon" id="toastIcon"></span>
+        <div>
+            <div id="toastTitle" style="font-weight: 600;"></div>
+            <div id="toastMessage" class="text-small text-muted"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html> 
