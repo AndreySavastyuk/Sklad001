@@ -8,6 +8,10 @@ class TaskBase(BaseModel):
     name: str
     description: Optional[str] = ""
     status: Optional[str] = "в разработке"
+    priority: Optional[str] = "средний"
+    responsible: Optional[str] = ""
+    due_date: Optional[datetime] = None
+    attachments: Optional[str] = ""
 
 class TaskCreate(TaskBase):
     pass
@@ -16,6 +20,16 @@ class TaskUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
+    priority: Optional[str] = None
+    responsible: Optional[str] = None
+    due_date: Optional[datetime] = None
+    attachments: Optional[str] = None
+
+class TaskBulkUpdate(BaseModel):
+    task_ids: List[int]
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    responsible: Optional[str] = None
 
 class Task(TaskBase):
     id: int
@@ -52,11 +66,31 @@ class TaskHistoryBase(BaseModel):
     task_id: int
     action: str
     details: str
+    field_name: Optional[str] = ""
+    old_value: Optional[str] = ""
+    new_value: Optional[str] = ""
     user: Optional[str] = "Система"
+    can_revert: Optional[bool] = False
 
 class TaskHistory(TaskHistoryBase):
     id: int
     timestamp: datetime
+    
+    class Config:
+        from_attributes = True
+
+# Схемы для фильтров
+class UserFilterBase(BaseModel):
+    name: str
+    filter_data: str
+    user: Optional[str] = "Пользователь"
+
+class UserFilterCreate(UserFilterBase):
+    pass
+
+class UserFilter(UserFilterBase):
+    id: int
+    created_date: datetime
     
     class Config:
         from_attributes = True

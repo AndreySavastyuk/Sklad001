@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import os
 
 # Создаем базу данных
-DATABASE_URL = "sqlite:///./backend/sklad.db"
+DATABASE_URL = "sqlite:///./sklad.db"
 engine = create_engine(DATABASE_URL, echo=False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -19,6 +19,10 @@ class Task(Base):
     name = Column(String, nullable=False)                 # Наименование
     description = Column(Text, default="")               # Описание
     status = Column(String, default="в разработке")      # Статус
+    priority = Column(String, default="средний")         # Приоритет
+    responsible = Column(String, default="")             # Ответственный
+    due_date = Column(DateTime, nullable=True)           # Срок выполнения
+    attachments = Column(Text, default="")               # Прикрепленные файлы (JSON)
     created_date = Column(DateTime, default=datetime.now)
     updated_date = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     completed_date = Column(DateTime, nullable=True)     # Дата завершения
@@ -46,8 +50,22 @@ class TaskHistory(Base):
     task_id = Column(Integer, nullable=False)
     action = Column(String, nullable=False)              # Действие
     details = Column(Text, nullable=False)               # Детали изменения
+    old_value = Column(Text, default="")                 # Старое значение
+    new_value = Column(Text, default="")                 # Новое значение
+    field_name = Column(String, default="")              # Название поля
     user = Column(String, default="Система")             # Пользователь
     timestamp = Column(DateTime, default=datetime.now)
+    can_revert = Column(Boolean, default=False)          # Можно ли откатить
+
+class UserFilter(Base):
+    """Пользовательские фильтры"""
+    __tablename__ = "user_filters"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)                # Название фильтра
+    filter_data = Column(Text, nullable=False)           # JSON с параметрами фильтра
+    user = Column(String, default="Пользователь")        # Пользователь
+    created_date = Column(DateTime, default=datetime.now)
 
 def init_db():
     """Инициализация базы данных"""
@@ -77,32 +95,47 @@ def create_sample_data():
                 number="2023/001",
                 name="Корпус",
                 description="Изготовление корпуса для станка",
-                status="в разработке"
+                status="в разработке",
+                priority="высокий",
+                responsible="Иванов И.И.",
+                due_date=datetime.now() + timedelta(days=5)
             ),
             Task(
                 number="2023/002", 
                 name="Крышка",
                 description="Крышка для корпуса",
-                status="подготовлено"
+                status="подготовлено",
+                priority="средний",
+                responsible="Петров П.П.",
+                due_date=datetime.now() + timedelta(days=3)
             ),
             Task(
                 number="2023/003",
                 name="Основание",
                 description="Основание станка", 
-                status="выполняется"
+                status="выполняется",
+                priority="срочный",
+                responsible="Сидоров С.С.",
+                due_date=datetime.now() - timedelta(days=1)  # Просрочено
             ),
             Task(
                 number="2023/004",
                 name="Вал",
                 description="Приводной вал",
                 status="готово",
-                completed_date=datetime.now() - timedelta(days=1)
+                priority="низкий",
+                responsible="Козлов К.К.",
+                completed_date=datetime.now() - timedelta(days=1),
+                due_date=datetime.now() - timedelta(days=2)
             ),
             Task(
                 number="2023/005",
                 name="Подшипник",
                 description="Подшипники качения",
-                status="отправлено"
+                status="отправлено",
+                priority="средний",
+                responsible="Волков В.В.",
+                due_date=datetime.now() + timedelta(days=7)
             )
         ]
         
@@ -161,13 +194,19 @@ def create_sample_data():
     finally:
         db.close()
 
-def log_task_change(db: Session, task_id: int, action: str, details: str, user: str = "Система"):
+def log_task_change(db: Session, task_id: int, action: str, details: str, 
+                   field_name: str = "", old_value: str = "", new_value: str = "", 
+                   user: str = "Система", can_revert: bool = False):
     """Логирование изменений задания"""
     history = TaskHistory(
         task_id=task_id,
         action=action,
         details=details,
-        user=user
+        field_name=field_name,
+        old_value=old_value,
+        new_value=new_value,
+        user=user,
+        can_revert=can_revert
     )
     db.add(history)
     db.commit()

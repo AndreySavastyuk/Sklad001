@@ -8,11 +8,12 @@ from datetime import datetime
 import os
 import uvicorn
 
-from models import init_db, get_db, Task, Reception, TaskHistory, create_sample_data, log_task_change, archive_old_tasks
+from models import init_db, get_db, Task, Reception, TaskHistory, UserFilter, create_sample_data, log_task_change, archive_old_tasks
 from schemas import (
-    TaskCreate, TaskUpdate, Task as TaskSchema,
+    TaskCreate, TaskUpdate, TaskBulkUpdate, Task as TaskSchema,
     ReceptionCreate, Reception as ReceptionSchema,
     TaskHistory as TaskHistorySchema,
+    UserFilterCreate, UserFilter as UserFilterSchema,
     ArchiveResponse, ErrorResponse
 )
 
@@ -56,6 +57,9 @@ async def get_tasks(
     archived: bool = Query(False, description="Получить архивные задания"),
     search: Optional[str] = Query(None, description="Поиск по названию или описанию"),
     status: Optional[str] = Query(None, description="Фильтр по статусу"),
+    priority: Optional[str] = Query(None, description="Фильтр по приоритету"),
+    responsible: Optional[str] = Query(None, description="Фильтр по ответственному"),
+    overdue: Optional[bool] = Query(None, description="Только просроченные задания"),
     sort_by: str = Query("created_date", description="Поле для сортировки"),
     sort_order: str = Query("desc", description="Порядок сортировки (asc/desc)"),
     db: Session = Depends(get_db)
@@ -68,12 +72,24 @@ async def get_tasks(
         query = query.filter(
             (Task.name.contains(search)) |
             (Task.description.contains(search)) |
-            (Task.number.contains(search))
+            (Task.number.contains(search)) |
+            (Task.responsible.contains(search))
         )
     
-    # Фильтр по статусу
+    # Фильтры
     if status:
         query = query.filter(Task.status == status)
+    if priority:
+        query = query.filter(Task.priority == priority)
+    if responsible:
+        query = query.filter(Task.responsible.contains(responsible))
+    
+    # Фильтр просроченных заданий
+    if overdue:
+        query = query.filter(
+            Task.due_date < datetime.now(),
+            Task.status != "готово"
+        )
     
     # Сортировка
     if hasattr(Task, sort_by):
@@ -135,7 +151,11 @@ async def update_task(task_id: int, task_update: TaskUpdate, db: Session = Depen
     old_values = {
         "name": db_task.name,
         "description": db_task.description,
-        "status": db_task.status
+        "status": db_task.status,
+        "priority": db_task.priority,
+        "responsible": db_task.responsible,
+        "due_date": db_task.due_date,
+        "attachments": db_task.attachments
     }
     
     # Обновляем только переданные поля
@@ -152,17 +172,19 @@ async def update_task(task_id: int, task_update: TaskUpdate, db: Session = Depen
     db.refresh(db_task)
     
     # Логируем изменения
-    changes = []
     for field, new_value in update_data.items():
-        if old_values.get(field) != new_value:
-            changes.append(f"{field}: '{old_values.get(field)}' → '{new_value}'")
-    
-    if changes:
-        log_task_change(
-            db, task_id, 
-            "Обновлено", 
-            f"Изменения: {', '.join(changes)}"
-        )
+        old_value = old_values.get(field)
+        if old_value != new_value:
+            log_task_change(
+                db, task_id,
+                "Обновлено",
+                f"Поле '{field}' изменено: '{old_value}' → '{new_value}'",
+                field_name=field,
+                old_value=str(old_value) if old_value is not None else "",
+                new_value=str(new_value) if new_value is not None else "",
+                user="Пользователь",
+                can_revert=True
+            )
     
     return db_task
 
@@ -181,6 +203,215 @@ async def delete_task(task_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return {"message": f"Задание '{task_name}' удалено"}
+
+# МАССОВЫЕ ОПЕРАЦИИ
+@app.put("/api/tasks/bulk-update")
+async def bulk_update_tasks(bulk_update: TaskBulkUpdate, db: Session = Depends(get_db)):
+    """Массовое обновление заданий"""
+    if not bulk_update.task_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Не указаны ID заданий для обновления"
+        )
+    
+    # Получаем задания
+    tasks = db.query(Task).filter(Task.id.in_(bulk_update.task_ids)).all()
+    if not tasks:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Задания не найдены"
+        )
+    
+    updated_count = 0
+    update_data = bulk_update.dict(exclude={'task_ids'}, exclude_unset=True)
+    
+    for task in tasks:
+        old_values = {}
+        changes = []
+        
+        for field, new_value in update_data.items():
+            if hasattr(task, field):
+                old_value = getattr(task, field)
+                old_values[field] = old_value
+                
+                if old_value != new_value:
+                    setattr(task, field, new_value)
+                    changes.append(f"{field}: '{old_value}' → '{new_value}'")
+                    
+                    # Если статус изменился на "готово", устанавливаем дату завершения
+                    if field == "status" and new_value == "готово" and old_value != "готово":
+                        task.completed_date = datetime.now()
+        
+        if changes:
+            task.updated_date = datetime.now()
+            updated_count += 1
+            
+            # Логируем изменения
+            log_task_change(
+                db, task.id,
+                "Массовое обновление",
+                f"Изменения: {', '.join(changes)}",
+                user="Пользователь"
+            )
+    
+    db.commit()
+    
+    return {
+        "message": f"Обновлено заданий: {updated_count}",
+        "updated_count": updated_count
+    }
+
+@app.delete("/api/tasks/bulk-delete")
+async def bulk_delete_tasks(task_ids: List[int], db: Session = Depends(get_db)):
+    """Массовое удаление заданий"""
+    if not task_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Не указаны ID заданий для удаления"
+        )
+    
+    tasks = db.query(Task).filter(Task.id.in_(task_ids)).all()
+    if not tasks:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Задания не найдены"
+        )
+    
+    deleted_count = len(tasks)
+    task_names = [task.name for task in tasks]
+    
+    for task in tasks:
+        db.delete(task)
+    
+    db.commit()
+    
+    return {
+        "message": f"Удалено заданий: {deleted_count}",
+        "deleted_count": deleted_count,
+        "deleted_tasks": task_names
+    }
+
+# СТАТИСТИКА И СЧЕТЧИКИ
+@app.get("/api/tasks-stats")
+async def get_tasks_stats(db: Session = Depends(get_db)):
+    """Получить статистику по заданиям"""
+    from sqlalchemy import func
+    
+    # Общая статистика
+    total_tasks = db.query(Task).filter(Task.archived == False).count()
+    
+    # По статусам
+    status_stats = db.query(
+        Task.status,
+        func.count(Task.id).label('count')
+    ).filter(Task.archived == False).group_by(Task.status).all()
+    
+    # По приоритетам
+    priority_stats = db.query(
+        Task.priority,
+        func.count(Task.id).label('count')
+    ).filter(Task.archived == False).group_by(Task.priority).all()
+    
+    # Просроченные задания
+    overdue_count = db.query(Task).filter(
+        Task.archived == False,
+        Task.due_date < datetime.now(),
+        Task.status != "готово"
+    ).count()
+    
+    return {
+        "total_tasks": total_tasks,
+        "overdue_count": overdue_count,
+        "status_stats": {stat.status: stat.count for stat in status_stats},
+        "priority_stats": {stat.priority: stat.count for stat in priority_stats}
+    }
+
+# ПОЛЬЗОВАТЕЛЬСКИЕ ФИЛЬТРЫ
+@app.get("/api/filters", response_model=List[UserFilterSchema])
+async def get_user_filters(db: Session = Depends(get_db)):
+    """Получить пользовательские фильтры"""
+    return db.query(UserFilter).order_by(UserFilter.created_date.desc()).all()
+
+@app.post("/api/filters", response_model=UserFilterSchema)
+async def create_user_filter(filter_data: UserFilterCreate, db: Session = Depends(get_db)):
+    """Создать пользовательский фильтр"""
+    db_filter = UserFilter(**filter_data.dict())
+    db.add(db_filter)
+    db.commit()
+    db.refresh(db_filter)
+    return db_filter
+
+@app.delete("/api/filters/{filter_id}")
+async def delete_user_filter(filter_id: int, db: Session = Depends(get_db)):
+    """Удалить пользовательский фильтр"""
+    db_filter = db.query(UserFilter).filter(UserFilter.id == filter_id).first()
+    if not db_filter:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Фильтр не найден"
+        )
+    
+    filter_name = db_filter.name
+    db.delete(db_filter)
+    db.commit()
+    
+    return {"message": f"Фильтр '{filter_name}' удален"}
+
+# ОТКАТ ИЗМЕНЕНИЙ
+@app.post("/api/tasks/{task_id}/revert/{history_id}")
+async def revert_task_change(task_id: int, history_id: int, db: Session = Depends(get_db)):
+    """Откатить изменение задания"""
+    # Проверяем существование задания
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Задание не найдено"
+        )
+    
+    # Проверяем существование записи истории
+    history = db.query(TaskHistory).filter(
+        TaskHistory.id == history_id,
+        TaskHistory.task_id == task_id,
+        TaskHistory.can_revert == True
+    ).first()
+    
+    if not history:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Запись истории не найдена или не может быть отменена"
+        )
+    
+    # Откатываем изменение
+    if history.field_name and hasattr(task, history.field_name):
+        old_value = getattr(task, history.field_name)
+        setattr(task, history.field_name, history.old_value)
+        task.updated_date = datetime.now()
+        
+        # Логируем откат
+        log_task_change(
+            db, task_id,
+            "Откат изменения",
+            f"Откат поля '{history.field_name}': '{old_value}' → '{history.old_value}'",
+            field_name=history.field_name,
+            old_value=old_value,
+            new_value=history.old_value,
+            user="Пользователь"
+        )
+        
+        db.commit()
+        db.refresh(task)
+        
+        return {
+            "message": "Изменение успешно отменено",
+            "reverted_field": history.field_name,
+            "reverted_to": history.old_value
+        }
+    
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Не удалось отменить изменение"
+    )
 
 # ПРИЕМКА
 @app.get("/api/receptions", response_model=List[ReceptionSchema])
